@@ -324,7 +324,7 @@ class FormCreator(object):
                 self.group_selected[0].update_dictionary()
                 if not error:
                     self.memory.remember(self.form.copy())
-                    self.has_changed = False
+                self.has_changed = False
         elif event == 'delete_down' and len(self.group_selected) != 0:
             for obj in self.group_selected:
                 if obj is not self.form:
