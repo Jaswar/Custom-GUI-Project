@@ -252,199 +252,200 @@ class FormCreator(object):
                 self.has_changed = True
             self.prev_pos_left_down = pg.mouse.get_pos()
 
-    def update(self):
-        event = self.listener.listen()
-        if event == 'quit':
-            pg.quit()
-        elif event == 'mouse_button_left_down':
-            self.value_change = None
-            self.prev_pos_left_down = pg.mouse.get_pos()
-            x, y = self.prev_pos_left_down
-            if self.form is not None and not (self.form.x <= x <= self.form.x + self.form.width and self.form.y <= y <= self.form.y + self.form.height):
-                if self.toolbar.item_width <= x <= self.screen.get_rect().width - 2 * self.specification_viewer.cell_width:
-                    for obj in self.group_selected:
-                        obj.update_dictionary()
-                        obj.is_selected = False
-                    self.group_selected = []
-                elif self.screen.get_rect().width - 2 * self.specification_viewer.cell_width <= x <= self.screen.get_rect().width and len(self.group_selected) == 1:
-                    for obj in self.group_selected:
-                        obj.update_dictionary()
-                    self.value_change = self.specification_viewer.find_field(x, y)
+    def run(self):
+        while True:
+            event = self.listener.listen()
+            if event == 'quit':
+                pg.quit()
+            elif event == 'mouse_button_left_down':
+                self.value_change = None
+                self.prev_pos_left_down = pg.mouse.get_pos()
+                x, y = self.prev_pos_left_down
+                if self.form is not None and not (self.form.x <= x <= self.form.x + self.form.width and self.form.y <= y <= self.form.y + self.form.height):
+                    if self.toolbar.item_width <= x <= self.screen.get_rect().width - 2 * self.specification_viewer.cell_width:
+                        for obj in self.group_selected:
+                            obj.update_dictionary()
+                            obj.is_selected = False
+                        self.group_selected = []
+                    elif self.screen.get_rect().width - 2 * self.specification_viewer.cell_width <= x <= self.screen.get_rect().width and len(self.group_selected) == 1:
+                        for obj in self.group_selected:
+                            obj.update_dictionary()
+                        self.value_change = self.specification_viewer.find_field(x, y)
+                    else:
+                        for obj in self.group_selected:
+                            obj.update_dictionary()
+                            obj.is_selected = False
+                        self.group_selected = []
+                        if self.item_held is not None:
+                            self.item_held.is_selected = False
+                            self.item_held = None
+
+                if self.item_held is None:
+                    item = self.toolbar.find_button(x, y)
+                    if item is not None:
+                        self.create_new_object(item)
                 else:
+                    self.item_held = None
+            elif event == 'mouse_button_left_up':
+                self.resize_action = None
+                self.item_held = None
+                self.item_resized = None
+                if self.has_changed:
+                    self.memory.remember(self.form.copy())
+                    self.has_changed = False
+            elif event == 'mouse_button_right_down':
+                x, y = pg.mouse.get_pos()
+                self.init_pos_right_down = (x, y)
+            elif event == 'mouse_button_right_up':
+                self.init_pos_right_down = (None, None)
+            elif event == 'backspace_down':
+                if self.value_change is None and len(self.group_selected) == 1 is not None and self.group_selected[0].type == 'Textbox' and len(self.group_selected[0].text) > 0:
+                    self.group_selected[0].text = self.group_selected[0].text[:-1]
+                    self.memory.remember(self.form.copy())
+                    self.has_changed = False
+                elif self.value_change is not None and len(self.group_selected) == 1:
+                    value = self.group_selected[0].updated[self.value_change]
+                    if len(str(value)) > 0:
+                        self.group_selected[0].updated[self.value_change] = str(value)[:-1]
+            elif event == 'space_down':
+                if self.value_change is None and len(self.group_selected) == 1 and self.group_selected[0].type == 'Textbox' and len(self.group_selected[0].text) < self.group_selected[0].max_len:
+                    self.group_selected[0].text += ' '
+                    self.memory.remember(self.form.copy())
+                    self.has_changed = False
+                elif self.value_change is not None and len(self.group_selected) == 1:
+                    self.group_selected[0].updated[self.value_change] = str(
+                        self.group_selected[0].updated[self.value_change]) + ' '
+            elif event == 'enter_down':
+                if self.value_change is None and len(self.group_selected) == 1 and self.group_selected[0].type == 'Textbox' and len(self.group_selected[0].text) < self.group_selected[0].max_len:
+                    self.group_selected[0].text += '\n'
+                    self.memory.remember(self.form.copy())
+                    self.has_changed = False
+                elif self.value_change is not None and len(self.group_selected) == 1:
+                    error = self.group_selected[0].convert_variables()
+                    self.group_selected[0].update_dictionary()
+                    if not error:
+                        self.memory.remember(self.form.copy())
+                    self.has_changed = False
+            elif event == 'delete_down' and len(self.group_selected) != 0:
+                for obj in self.group_selected:
+                    if obj is not self.form:
+                        self.form.objects.remove(obj)
+                self.group_selected = []
+                self.memory.remember(self.form.copy())
+                self.has_changed = False
+            elif event == 'sCTRL_down':
+                self.save()
+                self.exception_handler.message = 'Form saved.'
+            elif event == 'cCTRL_down':
+                self.to_copy = self.group_selected
+            elif event == 'vCTRL_down':
+                self.copy_group()
+            elif event == 'zCTRL_down':
+                self.form = self.memory.move_record(-1).copy()
+                self.group_selected = []
+                if self.form.is_selected:
+                    self.group_selected = [self.form]
+                for obj in self.form.objects:
+                    if obj.is_selected:
+                        self.group_selected.append(obj)
+                self.item_held = None
+                self.item_resized = None
+                self.value_change = None
+                self.resize_action = None
+                self.to_copy = []
+            elif event == 'yCTRL_down':
+                self.form = self.memory.move_record(1).copy()
+                self.group_selected = []
+                if self.form.is_selected:
+                    self.group_selected = [self.form]
+                for obj in self.form.objects:
+                    if obj.is_selected:
+                        self.group_selected.append(obj)
+                self.item_held = None
+                self.item_resized = None
+                self.value_change = None
+                self.resize_action = None
+                self.to_copy = []
+            elif event is not None and len(event) == 6 and event[-4:] == 'down':
+                if self.value_change is None and len(self.group_selected) == 1 and self.group_selected[0].type == 'Textbox' and len(self.group_selected[0].text) < self.group_selected[0].max_len:
+                    self.group_selected[0].text += event[0]
+                    self.memory.remember(self.form.copy())
+                    self.has_changed = False
+                elif self.value_change is not None and len(self.group_selected) == 1:
+                    self.group_selected[0].updated[self.value_change] = str(
+                        self.group_selected[0].updated[self.value_change]) + event[0]
+
+            if self.form is not None and self.item_held is None and self.resize_action is None and self.left_mouse_down() and self.value_change is None:
+                self.resize_action = self.detect_rect_edge(self.form.x, self.form.y, self.form.width, self.form.height)
+                if self.resize_action is not None and 0 <= self.resize_action <= 7:
                     for obj in self.group_selected:
                         obj.update_dictionary()
                         obj.is_selected = False
-                    self.group_selected = []
-                    if self.item_held is not None:
-                        self.item_held.is_selected = False
-                        self.item_held = None
-
-            if self.item_held is None:
-                item = self.toolbar.find_button(x, y)
-                if item is not None:
-                    self.create_new_object(item)
-            else:
-                self.item_held = None
-        elif event == 'mouse_button_left_up':
-            self.resize_action = None
-            self.item_held = None
-            self.item_resized = None
-            if self.has_changed:
-                self.memory.remember(self.form.copy())
-                self.has_changed = False
-        elif event == 'mouse_button_right_down':
-            x, y = pg.mouse.get_pos()
-            self.init_pos_right_down = (x, y)
-        elif event == 'mouse_button_right_up':
-            self.init_pos_right_down = (None, None)
-        elif event == 'backspace_down':
-            if self.value_change is None and len(self.group_selected) == 1 is not None and self.group_selected[0].type == 'Textbox' and len(self.group_selected[0].text) > 0:
-                self.group_selected[0].text = self.group_selected[0].text[:-1]
-                self.memory.remember(self.form.copy())
-                self.has_changed = False
-            elif self.value_change is not None and len(self.group_selected) == 1:
-                value = self.group_selected[0].updated[self.value_change]
-                if len(str(value)) > 0:
-                    self.group_selected[0].updated[self.value_change] = str(value)[:-1]
-        elif event == 'space_down':
-            if self.value_change is None and len(self.group_selected) == 1 and self.group_selected[0].type == 'Textbox' and len(self.group_selected[0].text) < self.group_selected[0].max_len:
-                self.group_selected[0].text += ' '
-                self.memory.remember(self.form.copy())
-                self.has_changed = False
-            elif self.value_change is not None and len(self.group_selected) == 1:
-                self.group_selected[0].updated[self.value_change] = str(
-                    self.group_selected[0].updated[self.value_change]) + ' '
-        elif event == 'enter_down':
-            if self.value_change is None and len(self.group_selected) == 1 and self.group_selected[0].type == 'Textbox' and len(self.group_selected[0].text) < self.group_selected[0].max_len:
-                self.group_selected[0].text += '\n'
-                self.memory.remember(self.form.copy())
-                self.has_changed = False
-            elif self.value_change is not None and len(self.group_selected) == 1:
-                error = self.group_selected[0].convert_variables()
-                self.group_selected[0].update_dictionary()
-                if not error:
-                    self.memory.remember(self.form.copy())
-                self.has_changed = False
-        elif event == 'delete_down' and len(self.group_selected) != 0:
-            for obj in self.group_selected:
-                if obj is not self.form:
-                    self.form.objects.remove(obj)
-            self.group_selected = []
-            self.memory.remember(self.form.copy())
-            self.has_changed = False
-        elif event == 'sCTRL_down':
-            self.save()
-            self.exception_handler.message = 'Form saved.'
-        elif event == 'cCTRL_down':
-            self.to_copy = self.group_selected
-        elif event == 'vCTRL_down':
-            self.copy_group()
-        elif event == 'zCTRL_down':
-            self.form = self.memory.move_record(-1).copy()
-            self.group_selected = []
-            if self.form.is_selected:
-                self.group_selected = [self.form]
-            for obj in self.form.objects:
-                if obj.is_selected:
-                    self.group_selected.append(obj)
-            self.item_held = None
-            self.item_resized = None
-            self.value_change = None
-            self.resize_action = None
-            self.to_copy = []
-        elif event == 'yCTRL_down':
-            self.form = self.memory.move_record(1).copy()
-            self.group_selected = []
-            if self.form.is_selected:
-                self.group_selected = [self.form]
-            for obj in self.form.objects:
-                if obj.is_selected:
-                    self.group_selected.append(obj)
-            self.item_held = None
-            self.item_resized = None
-            self.value_change = None
-            self.resize_action = None
-            self.to_copy = []
-        elif event is not None and len(event) == 6 and event[-4:] == 'down':
-            if self.value_change is None and len(self.group_selected) == 1 and self.group_selected[0].type == 'Textbox' and len(self.group_selected[0].text) < self.group_selected[0].max_len:
-                self.group_selected[0].text += event[0]
-                self.memory.remember(self.form.copy())
-                self.has_changed = False
-            elif self.value_change is not None and len(self.group_selected) == 1:
-                self.group_selected[0].updated[self.value_change] = str(
-                    self.group_selected[0].updated[self.value_change]) + event[0]
-
-        if self.form is not None and self.item_held is None and self.resize_action is None and self.left_mouse_down() and self.value_change is None:
-            self.resize_action = self.detect_rect_edge(self.form.x, self.form.y, self.form.width, self.form.height)
-            if self.resize_action is not None and 0 <= self.resize_action <= 7:
-                for obj in self.group_selected:
-                    obj.update_dictionary()
-                    obj.is_selected = False
-                self.item_resized = self.form
-                on_other_item = False
-                for obj in self.form.objects:
-                    if self.mouse_in_item(obj, is_on_form=True):
-                        on_other_item = True
-                if not on_other_item:
-                    self.group_selected = [self.form]
-                self.item_held = None
-            elif self.resize_action is None and self.mouse_in_item(self.form):
-                for obj in self.group_selected:
-                    obj.update_dictionary()
-                    obj.is_selected = False
-                on_other_item = False
-                for obj in self.form.objects:
-                    if self.mouse_in_item(obj, is_on_form=True):
-                        on_other_item = True
-                if not on_other_item:
-                    self.group_selected = [self.form]
-                self.item_held = self.form
-                self.item_resized = None
-            for object in reversed(self.form.objects):
-                ra = self.detect_rect_edge(object.abs_x, object.abs_y, object.width, object.height)
-                if ra is not None:
-                    self.resize_action = ra
-                    self.item_resized = object
-                    if object not in self.group_selected:
-                        for obj in self.group_selected:
-                            obj.update_dictionary()
-                            obj.is_selected = False
-                        self.group_selected = [object]
+                    self.item_resized = self.form
+                    on_other_item = False
+                    for obj in self.form.objects:
+                        if self.mouse_in_item(obj, is_on_form=True):
+                            on_other_item = True
+                    if not on_other_item:
+                        self.group_selected = [self.form]
                     self.item_held = None
-                    break
-                elif self.mouse_in_item(object, is_on_form=True):
-                    if object not in self.group_selected:
-                        for obj in self.group_selected:
-                            obj.update_dictionary()
-                            obj.is_selected = False
-                        self.group_selected = [object]
-                    self.item_held = object
+                elif self.resize_action is None and self.mouse_in_item(self.form):
+                    for obj in self.group_selected:
+                        obj.update_dictionary()
+                        obj.is_selected = False
+                    on_other_item = False
+                    for obj in self.form.objects:
+                        if self.mouse_in_item(obj, is_on_form=True):
+                            on_other_item = True
+                    if not on_other_item:
+                        self.group_selected = [self.form]
+                    self.item_held = self.form
                     self.item_resized = None
-                    break
-        elif self.form is not None and self.item_resized is not None:
-            self.resize_item(self.item_resized)
+                for object in reversed(self.form.objects):
+                    ra = self.detect_rect_edge(object.abs_x, object.abs_y, object.width, object.height)
+                    if ra is not None:
+                        self.resize_action = ra
+                        self.item_resized = object
+                        if object not in self.group_selected:
+                            for obj in self.group_selected:
+                                obj.update_dictionary()
+                                obj.is_selected = False
+                            self.group_selected = [object]
+                        self.item_held = None
+                        break
+                    elif self.mouse_in_item(object, is_on_form=True):
+                        if object not in self.group_selected:
+                            for obj in self.group_selected:
+                                obj.update_dictionary()
+                                obj.is_selected = False
+                            self.group_selected = [object]
+                        self.item_held = object
+                        self.item_resized = None
+                        break
+            elif self.form is not None and self.item_resized is not None:
+                self.resize_item(self.item_resized)
 
-        self.find_selected_group()
-        for obj in self.group_selected:
-            obj.is_selected = True
-
-        if len(self.group_selected) != 0 and self.left_mouse_down() and self.value_change is None:
+            self.find_selected_group()
             for obj in self.group_selected:
-                diffx, diffy = pg.mouse.get_pos()[0] - self.prev_pos_left_down[0], pg.mouse.get_pos()[1] - self.prev_pos_left_down[1]
-                obj.x += diffx
-                obj.y += diffy
-                if diffx != 0 or diffy != 0:
-                    self.has_changed = True
-            self.prev_pos_left_down = pg.mouse.get_pos()
+                obj.is_selected = True
 
-        if self.value_change is None:
-            for obj in self.group_selected:
-                obj.update_dictionary()
+            if len(self.group_selected) != 0 and self.left_mouse_down() and self.value_change is None:
+                for obj in self.group_selected:
+                    diffx, diffy = pg.mouse.get_pos()[0] - self.prev_pos_left_down[0], pg.mouse.get_pos()[1] - self.prev_pos_left_down[1]
+                    obj.x += diffx
+                    obj.y += diffy
+                    if diffx != 0 or diffy != 0:
+                        self.has_changed = True
+                self.prev_pos_left_down = pg.mouse.get_pos()
 
-        if self.item_held is not None:
-            self.item_held.update_dictionary()
+            if self.value_change is None:
+                for obj in self.group_selected:
+                    obj.update_dictionary()
 
-        self.update_screen()
+            if self.item_held is not None:
+                self.item_held.update_dictionary()
+
+            self.update_screen()
 
     def load(self):
         loader = FormLoader(self.save_filepath, self.screen)
